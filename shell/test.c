@@ -55,6 +55,9 @@ void printPathLook(char* executableName, char** envp){
 	    if (pid == 0){
 	      fflush(NULL);
 	      execve(potentialPath, &argv[0], 0);
+	      exit(0);
+	    } else {
+	      wait(NULL);
 	    }
      
             success = 1;
@@ -93,6 +96,11 @@ int main(int argc, char **argv, char**envp){
     }
 
     int numWords = numberOfWords(inputString, delim);
+
+    if (!numWords){
+      goto LOOP;
+    }
+    
     tokenizedString = myToc(inputString, delim);
     int i;
 
