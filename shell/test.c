@@ -1,5 +1,5 @@
 #include <unistd.h>
-#include <sys/wait.h>
+//#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,25 +8,56 @@
 char delim = ' ';
 char** tokenizedString;
 
+int stringLength(char* source){
+    char* temp = source;
+    int length = 0;
+    while(*temp != '\0'){
+        length++;
+        temp++;
+    }
+    return length;
+}
+
+char* copyString(char* dest, char* source){
+    unsigned int i, sourceLength = stringLength(source);
+    dest = malloc(sizeof(char) * (sourceLength+1));
+    for (i = 0; i < sourceLength; i++){
+        dest[i] = source[i];
+    }
+    dest[sourceLength] = '\0';
+    return dest;
+}
+
+char* mergeStrings(char* base, char* extra){
+    unsigned int msLength = stringLength(base) + stringLength(extra) + 1, baseLength = stringLength(base), i;
+    char* mergedString = malloc(sizeof(char) * msLength);
+
+    for (i = 0; i < msLength; i++){
+        if (i < baseLength){
+            mergedString[i] = base[i];
+        } else {
+            mergedString[i] = extra[i-baseLength];
+        }
+    }
+
+    return mergedString;
+}
+
 void printPathLook(char* executableName, char** envp, int pLength){
 
     if (!access(executableName, F_OK)){
         printf("Absolute Path \n");
-        //char* const * args = (char* const*) myToc(executableName, '\0');
-        //char* const argv[] = {executableName, 0};
-        //printf("%s\n", args[0]);
-	
         execve(executableName, tokenizedString, (char* const*) envp);
         return;
     }
 
     char *dup = strdup(getenv("PATH"));
-    int numWords = numberOfWords(dup, ':');
+    int numPaths = numberOfWords(dup, ':');
     char** tokenizedPath = myToc(dup, ':');
 
     int i, success = 0;
 
-    for (i = 0; i < numWords; i++) {
+    for (i = 0; i < numPaths; i++) {
 
         char potentialPath[1024];
 
@@ -34,64 +65,41 @@ void printPathLook(char* executableName, char** envp, int pLength){
         strcat(potentialPath, "/");
         strcat(potentialPath, executableName);
 
-	//strcat(potentialPath, ".bin");
-        //printf("i: %d ", i);
-
-	/*
-        char* temp = potentialPath;
-        while(*temp != '\0'){
-            write(1, temp, 1);
-            temp++;
-        }
-        write(1,"\n", 1);
-	*/
-
         int found = access(potentialPath, F_OK);
 
         if (found == 0){
-	  
-	    char* const argv[] = {potentialPath, 0};
+            char* const argv[] = {potentialPath, 0};
+            free(tokenizedString[0]);
 
-	    free(tokenizedString[0]);
+            int pPathLength = 0;
+            char* temp = potentialPath;
 
-	    int pPathLength = 0;
-	    char* temp = potentialPath;
-	    while(*temp != '\0'){
-	      pPathLength++;
-	      temp++;
-	    }
-	    
-	    tokenizedString[0] = malloc(sizeof(char) * (pPathLength + 1));
-	    strcpy(tokenizedString[0], potentialPath);
-	    //printf("\n%s\n", tokenizedString[0]);
-	    /*
-	    int k;
-	    for (k = 0; k < pLength; k++){
-	      printf("%s\n", tokenizedString[k]);
-	    }
-	    */
-	    
-	    pid_t pid = fork();
-	    
-	    if (pid == 0){
-	      fflush(NULL);
-	      execve(potentialPath, tokenizedString, envp);
-	      exit(0);
-	    } else {
-	      wait(NULL);
-	    }
-     
-            success = 1;
-            break;
+            while(*temp != '\0'){
+              pPathLength++;
+              temp++;
+            }
+
+            tokenizedString[0] = malloc(sizeof(char) * (pPathLength + 1));
+            strcpy(tokenizedString[0], potentialPath);
+
+            pid_t pid = fork();
+
+            if (pid == 0){
+              fflush(NULL);
+              execve(potentialPath, tokenizedString, envp);
+              exit(0);
+            } else {
+              wait(NULL);
+            }
+                success = 1;
+                break;
         }
-
-        //write(1,"\n", 1);
     }
 
     if(!success){
         printf("\n\tExecutable not found!\n\n");
     }
-    
+
     for (i = 0; i < numWords + 1; i++){
         free(tokenizedPath[i]);
     }
@@ -102,15 +110,17 @@ void printPathLook(char* executableName, char** envp, int pLength){
 
 int main(int argc, char **argv, char**envp){
 
-    int len = 1024, tocChoice = 1;
+    int len = 1024, tocChoice = 1, i;
     char inputString[len];
+
+    for (i=0; envp[i] != (char*)0; i++)
+        printf("envp[%d] = \"%s\"\n", i, envp[i]);
 
     LOOP:
 
     write(1,"$ ", 2);
     fgets (inputString, len, stdin) ;
 
-    // To end execution
     if (stringCompare(inputString, "exit\n")){
         printf("\nEnd of Execution\n\n");
         return 0;
@@ -121,27 +131,9 @@ int main(int argc, char **argv, char**envp){
     if (!numWords){
       goto LOOP;
     }
-    
+
     tokenizedString = myToc(inputString, delim);
-    int i;
-
-    /*
-    // Prints the token vector, token by toke, character by character
-    write(1,"\n", 1);
-    printf("------------------------------------------\n");
-    for (i = 0; i < numWords; i++){
-        char* temp = tokenizedString[i];
-        while(*temp != '\0'){
-            write(1, temp, 1);
-            temp++;
-        }
-        write(1,"\n", 1);
-    }
-    printf("------------------------------------------\n");
-    write(1,"\n", 1);
-    */
-
-    printPathLook(tokenizedString[0], envp, numWords);
+    //printPathLook(tokenizedString[0], envp, numWords);
 
     // Only free each token memory if they were allocated using the regular tokenizer
     if (tocChoice){
@@ -149,7 +141,6 @@ int main(int argc, char **argv, char**envp){
             free(tokenizedString[i]);
         }
     }
-
     // Free the pointer array from memory
     free(tokenizedString);
     goto LOOP;
