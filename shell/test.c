@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,18 +12,16 @@ void printPathLook(char* executableName, char** envp){
 
     if (!access(executableName, F_OK)){
         printf("Absolute Path \n");
-        const char** args = (const char**) myToc(executableName, '\0');
-        const char *argv[] = {executableName, 0};
+        char* const * args = (char* const*) myToc(executableName, '\0');
+        char* const argv[] = {executableName, 0};
         printf("%s\n", args[0]);
-        execve(executableName, &argv[0], (const char**) envp);
+        execve(executableName, &argv[0], (char* const*) envp);
         return;
     }
 
     char *dup = strdup(getenv("PATH"));
-
-    int numWords = numberOfWords(dup, ';');
-    //printf("numWords: %d\n", numWords);
-    char** tokenizedPath = myToc(dup, ';');
+    int numWords = numberOfWords(dup, ':');
+    char** tokenizedPath = myToc(dup, ':');
 
     int i, success = 0;
 
@@ -31,27 +30,33 @@ void printPathLook(char* executableName, char** envp){
         char potentialPath[1024];
 
         strcpy(potentialPath, tokenizedPath[i]);
-        strcat(potentialPath, "\\");
+        strcat(potentialPath, "/");
         strcat(potentialPath, executableName);
-        strcat(potentialPath, ".exe");
+
+	//strcat(potentialPath, ".bin");
         //printf("i: %d ", i);
 
-
+	/*
         char* temp = potentialPath;
         while(*temp != '\0'){
             write(1, temp, 1);
             temp++;
         }
         write(1,"\n", 1);
-
+	*/
 
         int found = access(potentialPath, F_OK);
 
         if (found == 0){
-            //const char** args = (const char**) myToc(dup, '\0');
-            const char *argv[] = {potentialPath, 0};
-            //printf("\n%d", found);
-            execve(potentialPath, &argv[0], 0);
+	  
+	    char* const argv[] = {potentialPath, 0};
+	    pid_t pid = fork();
+	    
+	    if (pid == 0){
+	      fflush(NULL);
+	      execve(potentialPath, &argv[0], 0);
+	    }
+     
             success = 1;
             break;
         }
@@ -62,7 +67,7 @@ void printPathLook(char* executableName, char** envp){
     if(!success){
         printf("\n\tExecutable not found!\n\n");
     }
-
+    
     for (i = 0; i < numWords + 1; i++){
         free(tokenizedPath[i]);
     }
