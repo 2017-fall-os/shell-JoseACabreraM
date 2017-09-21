@@ -8,14 +8,15 @@
 char delim = ' ';
 char** tokenizedString;
 
-void printPathLook(char* executableName, char** envp){
+void printPathLook(char* executableName, char** envp, int pLength){
 
     if (!access(executableName, F_OK)){
         printf("Absolute Path \n");
-        char* const * args = (char* const*) myToc(executableName, '\0');
-        char* const argv[] = {executableName, 0};
-        printf("%s\n", args[0]);
-        execve(executableName, &argv[0], (char* const*) envp);
+        //char* const * args = (char* const*) myToc(executableName, '\0');
+        //char* const argv[] = {executableName, 0};
+        //printf("%s\n", args[0]);
+	
+        execve(executableName, tokenizedString, (char* const*) envp);
         return;
     }
 
@@ -50,11 +51,31 @@ void printPathLook(char* executableName, char** envp){
         if (found == 0){
 	  
 	    char* const argv[] = {potentialPath, 0};
+
+	    free(tokenizedString[0]);
+
+	    int pPathLength = 0;
+	    char* temp = potentialPath;
+	    while(*temp != '\0'){
+	      pPathLength++;
+	      temp++;
+	    }
+	    
+	    tokenizedString[0] = malloc(sizeof(char) * (pPathLength + 1));
+	    strcpy(tokenizedString[0], potentialPath);
+	    //printf("\n%s\n", tokenizedString[0]);
+	    /*
+	    int k;
+	    for (k = 0; k < pLength; k++){
+	      printf("%s\n", tokenizedString[k]);
+	    }
+	    */
+	    
 	    pid_t pid = fork();
 	    
 	    if (pid == 0){
 	      fflush(NULL);
-	      execve(potentialPath, &argv[0], 0);
+	      execve(potentialPath, tokenizedString, envp);
 	      exit(0);
 	    } else {
 	      wait(NULL);
@@ -120,7 +141,7 @@ int main(int argc, char **argv, char**envp){
     write(1,"\n", 1);
     */
 
-    printPathLook(tokenizedString[0], envp);
+    printPathLook(tokenizedString[0], envp, numWords);
 
     // Only free each token memory if they were allocated using the regular tokenizer
     if (tocChoice){
