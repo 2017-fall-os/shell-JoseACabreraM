@@ -30,15 +30,17 @@ char* copyString(char* dest, char* source){
 
 char* mergeStrings(char* base, char* extra){
     unsigned int msLength = stringLength(base) + stringLength(extra) + 1, baseLength = stringLength(base), i;
-    char* mergedString = malloc(sizeof(char) * msLength);
+    char* baseCopy = copyString(baseCopy, base);
+    base = realloc(base, sizeof(char) * msLength);
     for (i = 0; i < msLength; i++){
         if (i < baseLength){
-            mergedString[i] = base[i];
+            base[i] = baseCopy[i];
         } else {
-            mergedString[i] = extra[i-baseLength];
+            base[i] = extra[i-baseLength];
         }
     }
-    return mergedString;
+    free(baseCopy);
+    return base;
 }
 
 char* formatPotentialPath(char* path, char* executableName, char* tokenizedPath){
@@ -48,16 +50,41 @@ char* formatPotentialPath(char* path, char* executableName, char* tokenizedPath)
 	return path;
 }
 
+char* returnPATH(char** envp){
+
+  char** tokens;
+  unsigned int i;
+  
+  for (i=0; envp[i] != (char*)0; i++){
+    tokens = myToc(envp[i], '=');
+    if (stringCompare("PATH", tokens[0])){
+      return tokens[1];
+    }
+    free(tokens);
+  }
+  
+}
+
 void printPathLook(char* executableName, char** envp, int pLength){
 
     if (!access(executableName, F_OK)){
-        execve(executableName, tokenizedString, (char* const*) envp);
-        return;
+      pid_t pid = fork();
+      if (pid == 0){
+	fflush(NULL);
+	int runP = execve(executableName, tokenizedString, (char* const*) envp);
+	if (runP == -1){
+	  printf("\tProgram Terminated With Exit Code: %d\n", runP);
+	}
+	exit(0);
+      } else {
+	wait(NULL);
+	return;
+      }
     }
 
-    char *dup = strdup(getenv("PATH"));
-    char** tokenizedPath = myToc(dup, ':');
-    int i, success = 0, numPaths = numberOfWords(dup, ':');
+    char* pathEnv = returnPATH(envp);
+    char** tokenizedPath = myToc(pathEnv, ':');
+    int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
 
     for (i = 0; i < numPaths; i++) {
         char* potentialPath = formatPotentialPath(potentialPath, executableName, tokenizedPath[i]);
@@ -67,7 +94,10 @@ void printPathLook(char* executableName, char** envp, int pLength){
             pid_t pid = fork();
             if (pid == 0){
               fflush(NULL);
-              execve(potentialPath, tokenizedString, envp);
+              int runP = execve(potentialPath, tokenizedString, envp);
+	      if (runP == -1){
+		printf("Program Terminated With Exit Code: %d\n", runP);
+	      }
               exit(0);
             } else {
               wait(NULL);
@@ -80,7 +110,7 @@ void printPathLook(char* executableName, char** envp, int pLength){
     }
 
     if(!success){
-        printf("\tExecutable not found!\n");
+        printf("\tCommand not found!\n");
     }
 
     for (i = 0; i < numPaths + 1; i++){
@@ -88,17 +118,14 @@ void printPathLook(char* executableName, char** envp, int pLength){
     }
     
     free(tokenizedPath);
-    free(dup);
+    free(pathEnv);
 }
 
 int main(int argc, char **argv, char**envp){
 
     int len = 1024, tocChoice = 1, i;
     char inputString[len];
-    /*
-    for (i=0; envp[i] != (char*)0; i++)
-        printf("envp[%d] = \"%s\"\n", i, envp[i]);
-    */
+
     LOOP:
 
     write(1,"$ ", 2);
