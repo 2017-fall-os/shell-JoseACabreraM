@@ -5,6 +5,7 @@
 #include <string.h>
 #include "mytoc.h"
 
+int numWords;
 char delim = ' ';
 char** tokenizedString;
 
@@ -65,13 +66,16 @@ char* returnPATH(char** envp){
   
 }
 
-void printPathLook(char* executableName, char** envp, int pLength){
+void printPathLook(char** envp){
 
-    if (!access(executableName, F_OK)){
-      pid_t pid = fork();
+  pid_t pid;
+  int runP;
+
+  if (!access(tokenizedString[0], F_OK)){
+      pid = fork();
       if (pid == 0){
 	fflush(NULL);
-	int runP = execve(executableName, tokenizedString, (char* const*) envp);
+	runP = execve(tokenizedString[0], tokenizedString, (char* const*) envp);
 	if (runP == -1){
 	  printf("\tProgram Terminated With Exit Code: %d\n", runP);
 	}
@@ -87,14 +91,14 @@ void printPathLook(char* executableName, char** envp, int pLength){
     int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
 
     for (i = 0; i < numPaths; i++) {
-        char* potentialPath = formatPotentialPath(potentialPath, executableName, tokenizedPath[i]);
+        char* potentialPath = formatPotentialPath(potentialPath, tokenizedString[0], tokenizedPath[i]);
         int found = access(potentialPath, F_OK);
         if (found == 0){
             copyString(tokenizedString[0], potentialPath);
-            pid_t pid = fork();
+            pid = fork();
             if (pid == 0){
               fflush(NULL);
-              int runP = execve(potentialPath, tokenizedString, envp);
+              runP = execve(potentialPath, tokenizedString, envp);
 	      if (runP == -1){
 		printf("Program Terminated With Exit Code: %d\n", runP);
 	      }
@@ -136,22 +140,21 @@ int main(int argc, char **argv, char**envp){
         return 0;
     }
 
-    int numWords = numberOfWords(inputString, delim);
+    numWords = numberOfWords(inputString, delim);
 
     if (!numWords){
       goto LOOP;
     }
 
     tokenizedString = myToc(inputString, delim);
-    printPathLook(tokenizedString[0], envp, numWords);
+    printPathLook(envp);
 
-    // Only free each token memory if they were allocated using the regular tokenizer
     if (tocChoice){
         for (i = 0; i < numWords + 1; i++){
             free(tokenizedString[i]);
         }
     }
-    // Free the pointer array from memory
+    
     free(tokenizedString);
     goto LOOP;
 
