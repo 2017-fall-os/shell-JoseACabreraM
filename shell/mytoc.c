@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "myString.h"
 
 // Takes a char pointer and changes it based on user input
 // Used to change the tokenizer delimiter character
@@ -8,19 +9,6 @@ void changeDelimiter(char* delim){
     printf("\nInput a new delimiter character: ");
     scanf("%[^\n]%*c", delim);
     write(1,"\n", 1);
-}
-
-// Compares two strings, returns 1 if they're equal, 0 otherwise
-int stringCompare(char* fString, char* sString){
-
-    int i = 0;
-    while (fString[i] == sString[i]){
-        if (fString[i] == '\0' || sString[i] == '\0'){
-            break;
-        }
-        i++;
-    }
-    return(fString[i] == '\0' && sString[i] == '\0');
 }
 
 // Given a string, counts the number of words
