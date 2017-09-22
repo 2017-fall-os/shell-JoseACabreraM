@@ -6,7 +6,7 @@ test: test.o mytoc.o myString.o
 
 CFLAGS= -g -O3
 
-myToc.o: mytoc.c
+myToc.o: mytoc.c myString.h
 	cc -c mytoc.c
   
 myString.o: myString.c

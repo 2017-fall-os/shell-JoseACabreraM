@@ -44,4 +44,5 @@ int stringCompare(char* fString, char* sString){
         }
         i++;
     }
+    return(fString[i] == '\0' && sString[i] == '\0');
 }

@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include "mytoc.h"
 #include "myString.h"
+#include "mytoc.h"
 
 int numWords;
 char delim = ' ';
@@ -31,7 +31,7 @@ char* returnPATH(char** envp){
   
 }
 
-void printPathLook(char** envp){
+void executeCommand(char** envp){
 
   pid_t pid;
   int runP;
@@ -53,7 +53,7 @@ void printPathLook(char** envp){
 
     char* pathEnv = returnPATH(envp);
     char** tokenizedPath = myToc(pathEnv, ':');
-    int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
+    unsigned int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
 
     for (i = 0; i < numPaths; i++) {
         char* potentialPath = formatPotentialPath(potentialPath, tokenizedString[0], tokenizedPath[i]);
@@ -92,19 +92,19 @@ void printPathLook(char** envp){
 
 int main(int argc, char **argv, char**envp){
 
-    int len = 1024, tocChoice = 1, i;
+    unsigned int len = 1024, i;
     char inputString[len];
 
     LOOP:
 
     write(1,"$ ", 2);
     fgets (inputString, len, stdin) ;
-
+ 
     if (stringCompare(inputString, "exit\n")){
         printf("\nEnd of Execution\n\n");
         return 0;
     }
-
+    
     numWords = numberOfWords(inputString, delim);
 
     if (!numWords){
@@ -112,15 +112,14 @@ int main(int argc, char **argv, char**envp){
     }
 
     tokenizedString = myToc(inputString, delim);
-    printPathLook(envp);
+    executeCommand(envp);
 
-    if (tocChoice){
-        for (i = 0; i < numWords + 1; i++){
-            free(tokenizedString[i]);
-        }
+    for (i = 0; i < numWords + 1; i++){
+        free(tokenizedString[i]);
     }
     
     free(tokenizedString);
+    
     goto LOOP;
 
     return 0;
