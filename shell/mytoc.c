@@ -101,34 +101,3 @@ char** myToc(char* inputString, char delim){
     return tokenizedStrings; // Return token vector
 }
 
-// Alternative tokenizer implementation that doesn't copy words, it modifies the input string
-char** myToc2(char* inputString, char delim){
-
-    int numWords = numberOfWords(inputString, delim);
-    char** tokenizedStrings = (char**) malloc(sizeof(char*) * (numWords + 1));
-    int insertWord = 1;
-    int i = 0;
-    char* temp = inputString;
-
-    while(1){
-        // When original end of string is reached, copy last word address and return token vector
-        if (*temp == '\0'){
-            tokenizedStrings[i] = temp;
-            return tokenizedStrings;
-        }
-        // If at the start of a new word, not counting the delimiter, copy the current address into the token vecotr
-        if (insertWord && *temp != delim){
-            tokenizedStrings[i] = temp;
-            i++;
-            insertWord = 0; // No longer at the start of a word
-        }
-        // If a delimiter or newspace character is reached, replace it by end of string character
-        if (*temp == delim || *temp == '\n'){
-            insertWord = 1;
-            *temp = '\0';
-        }
-        temp++;
-    }
-
-    return tokenizedStrings;
-}
