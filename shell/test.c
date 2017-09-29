@@ -98,6 +98,55 @@ void executeCommand(char** envp){
     free(pathEnv); // Frees the PATH enviroment variable
 }
 
+/*
+int countPipingOperators(char* inputString){
+  unsigned int opCount = 0;
+  char* temp;
+  for (temp = inputString; *temp != '\0'; temp++){
+    if (*temp == '>' || *temp == '<' || *temp == '|'){
+      opCount++;
+    }
+  }
+  return opCount;
+}
+*/
+
+void checkForExecutables(char* inputString, char** envp){
+
+  //executeCommand(envp);
+  int numCommands = numberOfWords(inputString, '|'), i, j;
+
+  printf("\nnumCommands:%d\n", numCommands);
+  
+  if (numCommands == 1){
+    tokenizedString = myToc(inputString, delim);
+    executeCommand(envp);
+    // Free token vector once execution has finished
+    for (i = 0; i < numWords + 1; i++){
+        free(tokenizedString[i]);
+    }
+    
+    free(tokenizedString);// Frees the tokenized path vector tokens
+  } else {
+
+    char** tokenizedCommands = myToc(inputString, '|');
+    
+    for (i = 0; i < numCommands; i++){
+      printf("\ni:%d\n", i);
+      numWords = numberOfWords(tokenizedCommands[i], delim);
+      tokenizedString = myToc(tokenizedCommands[i], delim);
+      executeCommand(envp);
+      // Free token vector once execution has finished
+      for (j = 0; j < numWords + 1; j++){
+        free(tokenizedString[j]);
+      }
+      free(tokenizedString);// Frees the tokenized path vector tokens
+    }
+
+  }
+
+}
+
 int main(int argc, char **argv, char**envp){
     unsigned int len = 1024, i;
     char inputString[len];
@@ -120,17 +169,12 @@ int main(int argc, char **argv, char**envp){
       goto LOOP;
     }
 
-	// Tokenize input, separate by spaces
-    tokenizedString = myToc(inputString, delim);
-	// Attempt to execute provided input
-    executeCommand(envp);
+    // Tokenize input, separate by spaces
+    //tokenizedString = myToc(inputString, delim);
+    // Attempt to execute provided input
+    checkForExecutables(inputString, envp);
 
-	// Free token vector once execution has finished
-    for (i = 0; i < numWords + 1; i++){
-        free(tokenizedString[i]);
-    }
-    
-    free(tokenizedString);// Frees the tokenized path vector tokens
+
     goto LOOP;
 
     return 0;
