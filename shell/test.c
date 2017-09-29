@@ -7,7 +7,7 @@
 
 int numWords; // Stores number of words per input
 char delim = ' '; // Delimiter for tokenizer
-char** tokenizedString; // Token vector
+
 
 // Formats strings to create valid a file path and returns it
 char* formatPotentialPath(char* path, char* executableName, char* tokenizedPath){
@@ -16,6 +16,8 @@ char* formatPotentialPath(char* path, char* executableName, char* tokenizedPath)
 	path = mergeStrings(path, executableName); // Appends the executable name to the path
 	return path; // Returns final path
 }
+
+
 
 // Traverses the environment variables, returning PATH 
 char* returnPATH(char** envp){
@@ -111,41 +113,104 @@ int countPipingOperators(char* inputString){
 }
 */
 
+char** formatExecutableParameters(char** tokenizedString, char** envp){
+	int runP; // For exit code
+	char* potentialPath;
+	
+	if (!access(tokenizedString[0], F_OK)){
+		return tokenizedString;
+	}
+
+    char* pathEnv = returnPATH(envp); 
+    char** tokenizedPath = myToc(pathEnv, ':'); 
+    unsigned int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
+
+	// Traverses available paths
+    for (i = 0; i < numPaths; i++) {
+		potentialPath = formatPotentialPath(potentialPath, tokenizedString[0], tokenizedPath[i]); // Provides proper path formatting
+		int found = access(potentialPath, F_OK); // Determines if path and command exists
+		// If path & command are valid, attempt to execute
+		if (found == 0){
+			goto FREE;
+		}
+		free(potentialPath); // Free the currently formatted path
+    }
+	
+	potentialPath = malloc(sizeof(char) * 2);
+	potentialPath[0] = '0';
+	potentialPath[1] = '\0'
+	
+	FREE: 
+	copyString(tokenizedString[0], potentialPath);
+	// Frees the tokenized path vector tokens
+	for (i = 0; i < numPaths + 1; i++){
+        free(tokenizedPath[i]);
+    }
+    free(tokenizedPath); 	// Frees the tokenized path vector 
+	free(pathEnv); // Frees the PATH enviroment variable
+	return tokenizedString;
+}
+
 void checkForExecutables(char* inputString, char** envp){
 
   //executeCommand(envp);
   int numCommands = numberOfWords(inputString, '|'), i, j;
-
+  char** tokenizedString;
+  
   printf("\nnumCommands:%d\n", numCommands);
   
   if (numCommands == 1){
-    tokenizedString = myToc(inputString, delim);
-    executeCommand(envp);
+    tokenizedString = formatExecutableParameters(tokenizedString, envp);
+	if (tokenizedString[0] != '0'){
+		execve(tokenizedString[0], tokenizedString, envp); // Attemps to execute command
+	} else {
+        printf("\tCommand not found!\n");
+	}
     // Free token vector once execution has finished
     for (i = 0; i < numWords + 1; i++){
         free(tokenizedString[i]);
     }
-    
     free(tokenizedString);// Frees the tokenized path vector tokens
   } else {
-
-    char** tokenizedCommands = myToc(inputString, '|');
-    
-    for (i = 0; i < numCommands; i++){
-      printf("\ni:%d\n", i);
-      numWords = numberOfWords(tokenizedCommands[i], delim);
-      tokenizedString = myToc(tokenizedCommands[i], delim);
-      executeCommand(envp);
-      // Free token vector once execution has finished
-      for (j = 0; j < numWords + 1; j++){
-        free(tokenizedString[j]);
-      }
-      free(tokenizedString);// Frees the tokenized path vector tokens
-    }
-
+	char** tokenizedCommands = myToc(inputString, '|');
+	pippedExecution(tokenizedCommands, envp, numCommands);
+	for (j = 0; j < numWords + 1; j++){
+		free(tokenizedCommands[j]);
+	}
+	free(tokenizedCommands);
   }
 
 }
+
+void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
+
+	int pid, status;
+	int fd[2];
+	pipe(fd);
+
+	LOOP:
+		tokenizedString = formatExecutableParameters(tokenizedCommands[numCommands-1], envp);
+		pid = fork();
+		if (pid == 0){
+			close(fd[0]);
+			executeCommand(envp);
+			return;
+		} else {
+			close(fd[1])
+			numCommand--;
+			// Free token vector once execution has finished
+			for (j = 0; j < numWords + 1; j++){
+				free(tokenizedString[j]);
+			}
+			free(tokenizedString);// Frees the tokenized path vector tokens 
+			if (numCommands > 0){
+				GOTO LOOP;
+			} else {
+				return;
+			}
+		}
+}
+
 
 int main(int argc, char **argv, char**envp){
     unsigned int len = 1024, i;
