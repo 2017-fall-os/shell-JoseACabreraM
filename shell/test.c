@@ -94,7 +94,7 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
     numWords = numberOfWords(tokenizedCommands[i], ' ');
     tokenizedString = myToc(tokenizedCommands[i], ' ');
     tokenizedString = formatExecutableParameters(tokenizedString, envp);
-
+    
     if (tokenizedString[0][0] != '0'){
       executePipedCommand(tokenizedString, envp, in, fd[1]);
       close(fd[1]);
@@ -134,33 +134,44 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
     close(stdoutCopy);
     fflush(NULL);
   }
+}
+
+void executeSingleCommand(char* inputString, char** envp){
+  char** tokenizedString;
+  tokenizedString = myToc(inputString, ' ');
+  tokenizedString = formatExecutableParameters(tokenizedString, envp);
   
+  if (stringCompare(tokenizedString[0], "cd\n")){
+    if (tokenizedString[1] == '\0'){
+      chdir("/");
+    } else {
+      chdir(tokenizedString[1]);
+    }
+    return;
+  }
+  
+  if (tokenizedString[0][0] != '0'){
+    int pid = fork();
+    if (pid == 0){
+      fflush(NULL);
+      execve(tokenizedString[0], tokenizedString, envp);
+      exit(0);
+    } else {
+      wait(NULL);
+    }
+  } else {
+    printf("\tCommand not found!\n");
+  }
+  for (i = 0; i < numWords + 1; i++){
+    free(tokenizedString[i]);
+  }
+  free(tokenizedString);
 }
 
 void checkForExecutables(char* inputString, char** envp){
-  
   int numCommands = numberOfWords(inputString, '|'), i, j;
-  char** tokenizedString;
-  
   if (numCommands == 1){
-    tokenizedString = myToc(inputString, ' ');
-    tokenizedString = formatExecutableParameters(tokenizedString, envp);
-    if (tokenizedString[0][0] != '0'){
-      int pid = fork();
-      if (pid == 0){
-        fflush(NULL);
-        execve(tokenizedString[0], tokenizedString, envp);
-        exit(0);
-      } else {
-        wait(NULL);
-      }
-    } else {
-      printf("\tCommand not found!\n");
-    }
-    for (i = 0; i < numWords + 1; i++){
-      free(tokenizedString[i]);
-    }
-    free(tokenizedString);
+    executeSingleCommand(inputString, envp);
   } else {
     char** tokenizedCommands = myToc(inputString, '|');
     pippedExecution(tokenizedCommands, envp, numCommands);
@@ -169,7 +180,6 @@ void checkForExecutables(char* inputString, char** envp){
     }
     free(tokenizedCommands);
   }
-  
 }
 
 int main(int argc, char **argv, char**envp){
