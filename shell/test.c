@@ -79,6 +79,7 @@ int executePipedCommand(char** tokenizedString, char** envp, int in, int out){
     }
     return execve(tokenizedString[0], tokenizedString, envp);
   }
+  wait(NULL);
   return pid;
 }
 
@@ -93,6 +94,15 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
 
     numWords = numberOfWords(tokenizedCommands[i], ' ');
     tokenizedString = myToc(tokenizedCommands[i], ' ');
+
+    if (stringCompare(tokenizedString[0], "cd")){
+      if (numWords == 1)
+	chdir("/root/");
+      else 
+	chdir(tokenizedString[1]);
+      goto FREE;
+    }
+    
     tokenizedString = formatExecutableParameters(tokenizedString, envp);
     
     if (tokenizedString[0][0] != '0'){
@@ -107,7 +117,7 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
       free(tokenizedString);
       goto RSTRFD;
     }
-    
+  FREE:
     for (j = 0; j < numWords + 1; j++){
       free(tokenizedString[j]);
     }
@@ -137,19 +147,22 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
 }
 
 void executeSingleCommand(char* inputString, char** envp){
+  int i, numArg;
   char** tokenizedString;
+  numArg = numberOfWords(inputString, ' ');
   tokenizedString = myToc(inputString, ' ');
-  tokenizedString = formatExecutableParameters(tokenizedString, envp);
+
   
-  if (stringCompare(tokenizedString[0], "cd\n")){
-    if (tokenizedString[1] == '\0'){
-      chdir("/");
-    } else {
+  if (stringCompare(tokenizedString[0], "cd")){
+    if (numArg == 1)
+      chdir("/root/");
+    else 
       chdir(tokenizedString[1]);
-    }
-    return;
+    goto FREE;
   }
   
+  
+  tokenizedString = formatExecutableParameters(tokenizedString, envp);
   if (tokenizedString[0][0] != '0'){
     int pid = fork();
     if (pid == 0){
@@ -162,7 +175,9 @@ void executeSingleCommand(char* inputString, char** envp){
   } else {
     printf("\tCommand not found!\n");
   }
-  for (i = 0; i < numWords + 1; i++){
+
+ FREE:
+  for (i = 0; i < numArg + 1; i++){
     free(tokenizedString[i]);
   }
   free(tokenizedString);
