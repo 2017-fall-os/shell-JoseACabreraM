@@ -8,30 +8,28 @@
 int numWords; // Stores number of words per input
 char delim = ' '; // Delimiter for tokenizer
 
-
 // Formats strings to create valid a file path and returns it
 char* formatPotentialPath(char* path, char* executableName, char* tokenizedPath){
-    path = copyString(path, tokenizedPath); // Copies path
-    path = mergeStrings(path, "/"); // Appends the '/' character to the path
-	path = mergeStrings(path, executableName); // Appends the executable name to the path
-	return path; // Returns final path
+  path = copyString(path, tokenizedPath); // Copies path
+  path = mergeStrings(path, "/"); // Appends the '/' character to the path
+  path = mergeStrings(path, executableName); // Appends the executable name to the path
+  return path; // Returns final path
 }
-
-
 
 // Traverses the environment variables, returning PATH 
 char* returnPATH(char** envp){
-	char** tokens; // To tokenize the enviroment variables
-	unsigned int i;
-	for (i=0; envp[i] != (char*)0; i++){
-	tokens = myToc(envp[i], '='); // Separates enviroment variables by value and key
-	if (stringCompare("PATH", tokens[0])){
-	  return tokens[1]; // Returns PATH when found
-	}
-	free(tokens);
-	}
+  char** tokens; // To tokenize the enviroment variables
+  unsigned int i;
+  for (i=0; envp[i] != (char*)0; i++){
+    tokens = myToc(envp[i], '='); // Separates enviroment variables by value and key
+    if (stringCompare("PATH", tokens[0])){
+      return tokens[1]; // Returns PATH when found
+    }
+    free(tokens);
+  }
 }
 
+/*
 // Attempts to execute a command give the command name or 
 // absolute path, as well as with any corresponding arguments. 
 void executeCommand(char** envp){
@@ -114,42 +112,118 @@ int countPipingOperators(char* inputString){
 */
 
 char** formatExecutableParameters(char** tokenizedString, char** envp){
-	int runP; // For exit code
-	char* potentialPath;
+  int runP; // For exit code
+  char* potentialPath;
 	
-	if (!access(tokenizedString[0], F_OK)){
-		return tokenizedString;
-	}
+  if (!access(tokenizedString[0], F_OK)){
+    return tokenizedString;
+  }
 
-    char* pathEnv = returnPATH(envp); 
-    char** tokenizedPath = myToc(pathEnv, ':'); 
-    unsigned int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
+  char* pathEnv = returnPATH(envp); 
+  char** tokenizedPath = myToc(pathEnv, ':'); 
+  unsigned int i, success = 0, numPaths = numberOfWords(pathEnv, ':');
 
-	// Traverses available paths
-    for (i = 0; i < numPaths; i++) {
-		potentialPath = formatPotentialPath(potentialPath, tokenizedString[0], tokenizedPath[i]); // Provides proper path formatting
-		int found = access(potentialPath, F_OK); // Determines if path and command exists
-		// If path & command are valid, attempt to execute
-		if (found == 0){
-			goto FREE;
-		}
-		free(potentialPath); // Free the currently formatted path
+  for (i = 0; i < numPaths; i++) {
+    potentialPath = formatPotentialPath(potentialPath, tokenizedString[0], tokenizedPath[i]);
+    int found = access(potentialPath, F_OK); // Determines if path and command exists
+    // If path & command are valid, attempt to execute
+    if (found == 0){
+      goto FREE;
     }
+    free(potentialPath); // Free the currently formatted path
+  }
 	
-	potentialPath = malloc(sizeof(char) * 2);
-	potentialPath[0] = '0';
-	potentialPath[1] = '\0'
+  potentialPath = malloc(sizeof(char) * 2);
+  potentialPath[0] = '0';
+  potentialPath[1] = '\0';
 	
-	FREE: 
-	copyString(tokenizedString[0], potentialPath);
-	// Frees the tokenized path vector tokens
-	for (i = 0; i < numPaths + 1; i++){
-        free(tokenizedPath[i]);
-    }
-    free(tokenizedPath); 	// Frees the tokenized path vector 
-	free(pathEnv); // Frees the PATH enviroment variable
-	return tokenizedString;
+ FREE:
+  tokenizedString[0] = copyString(tokenizedString[0], potentialPath);
+  // Frees the tokenized path vector tokens
+  for (i = 0; i < numPaths + 1; i++){
+    free(tokenizedPath[i]);
+  }
+  free(tokenizedPath); 	// Frees the tokenized path vector 
+  free(pathEnv); // Frees the PATH enviroment variable
+  return tokenizedString;
 }
+
+int executeCommand(char** tokenizedString, char** envp, int in, int out){
+
+  pid_t pid;
+
+  if ((pid = fork()) == 0){
+
+    if (in != 0){
+      dup2(in, 0);
+      close(in);
+    }
+
+    if (out != 1) {
+      dup2(out, 1);
+      close(out);
+    }
+
+    return execve(tokenizedString[0], tokenizedString, envp);
+  }
+
+  return pid;
+  
+}
+
+
+void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
+  int pid, status, i, j, in;
+  int fd[2];
+  char** tokenizedString;
+
+  int stdinCopy = dup(0);
+  int stdoutCopy = dup(1);
+  
+  in = 0;
+  
+  for (i = 0; i < numCommands-1; i++){
+    pipe(fd);
+
+    numWords = numberOfWords(tokenizedCommands[i], ' ');
+    tokenizedString = myToc(tokenizedCommands[i], ' ');
+    tokenizedString = formatExecutableParameters(tokenizedString, envp);
+
+    executeCommand(tokenizedString, envp, in, fd[1]);
+    close(fd[1]);
+    in = fd[0];
+    
+    // Free
+    for (j = 0; j < numWords + 1; j++){
+      free(tokenizedString[j]);
+    }
+    free(tokenizedString);
+    // Free    
+  }
+
+  if (in != 0){
+    dup2(in, 0);
+  }
+    
+  tokenizedString = myToc(tokenizedCommands[i], ' ');
+  tokenizedString = formatExecutableParameters(tokenizedString, envp);
+  pid = fork();
+  
+  if (pid == 0){
+    fflush(NULL);
+    execve(tokenizedString[0], tokenizedString, envp);
+    exit(0);
+  } else {
+    dup2(stdinCopy, 0);
+    dup2(stdoutCopy, 1);
+    close(stdinCopy);
+    close(stdoutCopy);
+    wait(NULL);
+  }
+}
+
+
+
 
 void checkForExecutables(char* inputString, char** envp){
 
@@ -160,56 +234,44 @@ void checkForExecutables(char* inputString, char** envp){
   printf("\nnumCommands:%d\n", numCommands);
   
   if (numCommands == 1){
+    tokenizedString = myToc(inputString, ' ');
     tokenizedString = formatExecutableParameters(tokenizedString, envp);
-	if (tokenizedString[0] != '0'){
-		execve(tokenizedString[0], tokenizedString, envp); // Attemps to execute command
-	} else {
-        printf("\tCommand not found!\n");
-	}
+    printf("Path: %s\n", tokenizedString[0]);
+    if (tokenizedString[0][0] != '0'){
+      int pid = fork();
+      if (pid == 0){
+	fflush(NULL);
+	execve(tokenizedString[0], tokenizedString, envp);
+	exit(0);
+      } else {
+	wait(NULL);
+      }
+      
+    } else {
+      printf("\tCommand not found!\n");
+    }
+    
     // Free token vector once execution has finished
     for (i = 0; i < numWords + 1; i++){
         free(tokenizedString[i]);
     }
     free(tokenizedString);// Frees the tokenized path vector tokens
   } else {
+    
 	char** tokenizedCommands = myToc(inputString, '|');
+
 	pippedExecution(tokenizedCommands, envp, numCommands);
+
 	for (j = 0; j < numWords + 1; j++){
 		free(tokenizedCommands[j]);
 	}
 	free(tokenizedCommands);
+	
   }
 
 }
 
-void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
 
-	int pid, status;
-	int fd[2];
-	pipe(fd);
-
-	LOOP:
-		tokenizedString = formatExecutableParameters(tokenizedCommands[numCommands-1], envp);
-		pid = fork();
-		if (pid == 0){
-			close(fd[0]);
-			executeCommand(envp);
-			return;
-		} else {
-			close(fd[1])
-			numCommand--;
-			// Free token vector once execution has finished
-			for (j = 0; j < numWords + 1; j++){
-				free(tokenizedString[j]);
-			}
-			free(tokenizedString);// Frees the tokenized path vector tokens 
-			if (numCommands > 0){
-				GOTO LOOP;
-			} else {
-				return;
-			}
-		}
-}
 
 
 int main(int argc, char **argv, char**envp){
@@ -238,7 +300,7 @@ int main(int argc, char **argv, char**envp){
     //tokenizedString = myToc(inputString, delim);
     // Attempt to execute provided input
     checkForExecutables(inputString, envp);
-
+    wait(NULL);
 
     goto LOOP;
 
