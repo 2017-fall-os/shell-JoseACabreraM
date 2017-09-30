@@ -152,6 +152,9 @@ void executeSingleCommand(char* inputString, char** envp){
   numArg = numberOfWords(inputString, ' ');
   tokenizedString = myToc(inputString, ' ');
 
+  if (!numArg) {
+    return;
+  }
   
   if (stringCompare(tokenizedString[0], "cd")){
     if (numArg == 1)
@@ -160,9 +163,9 @@ void executeSingleCommand(char* inputString, char** envp){
       chdir(tokenizedString[1]);
     goto FREE;
   }
-  
-  
+
   tokenizedString = formatExecutableParameters(tokenizedString, envp);
+
   if (tokenizedString[0][0] != '0'){
     int pid = fork();
     if (pid == 0){
@@ -197,6 +200,33 @@ void checkForExecutables(char* inputString, char** envp){
   }
 }
 
+void checkForBackground(char* inputString, char** envp){
+
+  int numBackground = numberOfWords(inputString, '&'), i;
+
+  if (numBackground == 1){
+    checkForExecutables(inputString, envp);
+    return;
+  }
+  
+  char** backTask = myToc(inputString, '&');
+  for (i = numBackground-1; i >= 1; i--){
+    int pid = fork();
+    if (pid == 0){
+      checkForExecutables(backTask[i], envp);
+      exit(0);
+    } else {
+      checkForExecutables(backTask[i-1], envp);
+    }
+    
+  }
+  for (i = 0; i < numBackground; i++){
+    free(backTask[i]);
+  }
+  free(backTask);
+  
+}
+
 int main(int argc, char **argv, char**envp){
   unsigned int len = 1024, i;
   char inputString[len];
@@ -219,8 +249,7 @@ int main(int argc, char **argv, char**envp){
     goto LOOP;
   }
   
-  checkForExecutables(inputString, envp);
-  wait(NULL);
+  checkForBackground(inputString, envp);
   goto LOOP;
 
   return 0;
