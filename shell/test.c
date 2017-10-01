@@ -70,7 +70,7 @@ char** formatExecutableParameters(char** tokenizedString, char** envp){
   return tokenizedString;
 }
 
-// Execute command 
+// Execute commands, supporting standard piping
 int executeCommand(char* inputString, char** envp, int pipe, int in, int out){
   int i, numArg, retVal = 0;
   char** tokenizedString;
