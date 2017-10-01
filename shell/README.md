@@ -6,6 +6,14 @@ inside the String. The shell includes the following built-in function:
 
   exit - End execution of the program.
 
+The shell now supports piping by providing it commands that are in the form of: 
+
+  $ command1 | command2
+  
+The shell now supports background tasking by providing it commands that are in the form of: 
+
+  $ command1 & command2
+  
 This program contains the following files:
 
 mytoc.c - Contains the tokenizer and its helper functions. 

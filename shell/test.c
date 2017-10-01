@@ -69,25 +69,8 @@ char** formatExecutableParameters(char** tokenizedString, char** envp){
   return tokenizedString;
 }
 
-int executePipedCommand(char** tokenizedString, char** envp, int in, int out){
-  pid_t pid;
-  if ((pid = fork()) == 0){
-    if (in != 0){
-      dup2(in, 0);
-      close(in);
-    }
-    if (out != 1) {
-      dup2(out, 1);
-      close(out);
-    }
-    return execve(tokenizedString[0], tokenizedString, envp);
-  }
-  wait(NULL);
-  return pid;
-}
-
 // Execute a regular single command 
-int executeSingleCommand(char* inputString, char** envp, int pipe, int in, int out){
+int executeCommand(char* inputString, char** envp, int pipe, int in, int out){
   int i, numArg, retVal = 0;
   char** tokenizedString;
   
@@ -114,18 +97,25 @@ int executeSingleCommand(char* inputString, char** envp, int pipe, int in, int o
 
   // Run only if provided command was found
   if (tokenizedString[0][0] != '0'){
-    int pid = fork();
+    pid_t pid = fork();
     if (pid == 0){
       fflush(NULL);
+      // If piping is taking place, redirect I/O
       if(pipe){
-	if (in != 0){
-	  dup2(in, 0);
-	  close(in);
-	}
-	if (out != 1) {
-	  dup2(out, 1);
-	  close(out);
-	}
+        // If pipe input isn't set to stdin
+        if (in != 0){
+          // Copy pipe input fd into stdin
+          dup2(in, 0);
+          // Close hanging file descriptor 
+          close(in);
+        }
+        // If pipe output isn't set to stdin
+        if (out != 1) {
+          // Copy pipe output fd into stdout
+          dup2(out, 1);
+          // Close hanging file descriptor 
+          close(out);
+        }
       }
       // If in child, execute command
       execve(tokenizedString[0], tokenizedString, envp);
@@ -148,8 +138,7 @@ int executeSingleCommand(char* inputString, char** envp, int pipe, int in, int o
 }
 
 // Provides I/O redirection for piped commands
-void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
-
+void pipedExecution(char** tokenizedCommands, char** envp, int numCommands){
   int i, j, in = 0, out;
   int fd[2];
   pid_t pid;
@@ -157,9 +146,9 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
   int stdinCopy = dup(0), stdoutCopy = dup(1); 
   for (i = 0; i < numCommands-1; i++){
     pipe(fd); // Sets pipe
-    if(executeSingleCommand(tokenizedCommands[i], envp, 1, in, fd[1])){
-      close(fd[1]); // Close output 
-      in = fd[0]; // Receive input
+    if(executeCommand(tokenizedCommands[i], envp, 1, in, fd[1])){
+      close(fd[1]); // Close pipe output fd
+      in = fd[0]; // Copy input fd from pipe
     } else {
       printf("\tCommand not found!\n");
       goto RSTRFD; // Restore default file descriptors
@@ -168,8 +157,7 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
   if (in != 0){
     dup2(in, 0);
   }
-  executeSingleCommand(tokenizedCommands[i], envp, 1, in, fd[1]);
-
+  executeCommand(tokenizedCommands[i], envp, 1, in, fd[1]);
   RSTRFD: 
   dup2(stdinCopy, 0);
   dup2(stdoutCopy, 1);
@@ -180,18 +168,17 @@ void checkForExecutables(char* inputString, char** envp){
   int numCommands = numberOfWords(inputString, '|'), i, j;
   if (numCommands == 1){
     // If only a single command was provided, no piping will take place
-    executeSingleCommand(inputString, envp, 0, 0, 0); 
+    executeCommand(inputString, envp, 0, 0, 0); 
   } else {
     // Creates an executables vector
     char** tokenizedCommands = myToc(inputString, '|'); 
-    pippedExecution(tokenizedCommands, envp, numCommands);
+    pipedExecution(tokenizedCommands, envp, numCommands);
     // Frees executable vector after execution, to avoid memory loss
     free(tokenizedCommands);
   }
 }
 
 void checkForBackground(char* inputString, char** envp){
-
   int numBackground = numberOfWords(inputString, '&'), i;
 
   // If there will be no background execution
