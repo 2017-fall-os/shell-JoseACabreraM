@@ -29,10 +29,13 @@ char* returnPATH(char** envp){
   }
 }
 
+// Receives argument vector, returns a properly formated argument vector if a valid 
+// command was provided or "0" as the file path if the provided command was not found 
 char** formatExecutableParameters(char** tokenizedString, char** envp){
   int runP; // For exit code
   char* potentialPath;
 	
+  // If the provided argument vector was already properly formatted, return it
   if (!access(tokenizedString[0], F_OK)){
     return tokenizedString;
   }
@@ -83,60 +86,70 @@ int executePipedCommand(char** tokenizedString, char** envp, int in, int out){
   return pid;
 }
 
-
+// Provides I/O redirection for piped commands
 void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
-  int pid, i, j, in = 0, stdinCopy = dup(0), stdoutCopy = dup(1);
+  int pid, i, j, in = 0;
   int fd[2];
   char** tokenizedString;
   
   for (i = 0; i < numCommands-1; i++){
-    pipe(fd);
-
-    numWords = numberOfWords(tokenizedCommands[i], ' ');
-    tokenizedString = myToc(tokenizedCommands[i], ' ');
-
+    pipe(fd); // Sets pipe 
+    numWords = numberOfWords(tokenizedCommands[i], ' '); // Calculate the number of arguments 
+    tokenizedString = myToc(tokenizedCommands[i], ' '); // Tokenizes the input string into individual arguments 
+    // Checks for the special case of the cd command
     if (stringCompare(tokenizedString[0], "cd")){
-      if (numWords == 1)
-	chdir("/root/");
-      else 
-	chdir(tokenizedString[1]);
-      goto FREE;
+      if (numWords == 1){
+        chdir("/root/"); // If no path was specified, go to the root folder
+      }
+      else{
+        chdir(tokenizedString[1]);
+      }
+      continue; 
     }
-    
-    tokenizedString = formatExecutableParameters(tokenizedString, envp);
-    
+    // Finds absolute path for input command and returns a properly formatted argument vector
+    tokenizedString = formatExecutableParameters(tokenizedString, envp); 
+    // Stores the original file descriptors for stdin & stdout
+    int stdinCopy = dup(0), stdoutCopy = dup(1); 
+    // Run only if provided command was found
     if (tokenizedString[0][0] != '0'){
       executePipedCommand(tokenizedString, envp, in, fd[1]);
-      close(fd[1]);
-      in = fd[0];
+      close(fd[1]); // Close output 
+      in = fd[0]; // Receive input
     } else {
       printf("\tCommand not found!\n");
+      // Free argument vector, to avoid memory leaks
       for (j = 0; j < numWords + 1; j++){
         free(tokenizedString[j]);
       }
       free(tokenizedString);
-      goto RSTRFD;
+      goto RSTRFD; // Restore default file descriptors
     }
-  FREE:
+    // Free argument vector for next command
     for (j = 0; j < numWords + 1; j++){
       free(tokenizedString[j]);
     }
     free(tokenizedString);
   }
-
+  
   if (in != 0){
     dup2(in, 0);
   }
-    
+  // Free argument vector for final command
+  for (j = 0; j < numWords + 1; j++){
+    free(tokenizedString[j]);
+  }
+  free(tokenizedString);
+  // Format the final argument vector
   tokenizedString = myToc(tokenizedCommands[i], ' ');
   tokenizedString = formatExecutableParameters(tokenizedString, envp);
+  // Attempt to execute the final command
   pid = fork();
-  
   if (pid == 0){
     fflush(NULL);
     execve(tokenizedString[0], tokenizedString, envp);
     exit(0);
   } else {
+    // Restores the default file descriptors once final process executes
     RSTRFD: 
     dup2(stdinCopy, 0);
     dup2(stdoutCopy, 1);
@@ -146,53 +159,65 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
   }
 }
 
+// Execute a regular single command 
 void executeSingleCommand(char* inputString, char** envp){
   int i, numArg;
   char** tokenizedString;
-  numArg = numberOfWords(inputString, ' ');
-  tokenizedString = myToc(inputString, ' ');
+  
+  numArg = numberOfWords(inputString, ' '); // Calculate number of arguments 
+  tokenizedString = myToc(inputString, ' '); // Tokenizes the input string into individual arguments 
 
+  // If no arguments were provided, return
   if (!numArg) {
     return;
   }
   
+  // Checks for the special case of the cd command
   if (stringCompare(tokenizedString[0], "cd")){
     if (numArg == 1)
-      chdir("/root/");
+      chdir("/root/"); // If no path was specified, go to the root folder
     else 
-      chdir(tokenizedString[1]);
-    goto FREE;
+      chdir(tokenizedString[1]); 
+    goto FREE; // Free malloc'd argument vector
   }
-
+  
+  // Finds absolute path for input command and returns a properly formatted argument vector
   tokenizedString = formatExecutableParameters(tokenizedString, envp);
 
+  // Run only if provided command was found
   if (tokenizedString[0][0] != '0'){
     int pid = fork();
     if (pid == 0){
+      // If in child, execute command
       fflush(NULL);
       execve(tokenizedString[0], tokenizedString, envp);
       exit(0);
     } else {
-      wait(NULL);
+      wait(NULL); // Wait for child to be done before continuing execution
     }
   } else {
     printf("\tCommand not found!\n");
   }
 
  FREE:
+  // Free argument vector, to avoid memory leaks
   for (i = 0; i < numArg + 1; i++){
     free(tokenizedString[i]);
   }
   free(tokenizedString);
 }
 
+// Determines if piping was instructed, handling it if it's the case
 void checkForExecutables(char* inputString, char** envp){
   int numCommands = numberOfWords(inputString, '|'), i, j;
   if (numCommands == 1){
-    executeSingleCommand(inputString, envp);
+    // If only a single command was provided, no piping will take place
+    executeSingleCommand(inputString, envp); 
   } else {
-    char** tokenizedCommands = myToc(inputString, '|');
+    // Creates an executables vector
+    char** tokenizedCommands = myToc(inputString, '|'); 
     pippedExecution(tokenizedCommands, envp, numCommands);
+    // Frees executable vector after execution, to avoid memory loss
     for (j = 0; j < numWords + 1; j++){
       free(tokenizedCommands[j]);
     }
@@ -204,53 +229,54 @@ void checkForBackground(char* inputString, char** envp){
 
   int numBackground = numberOfWords(inputString, '&'), i;
 
+  // If there will be no background execution
   if (numBackground == 1){
+    // Proceed to check for piping
     checkForExecutables(inputString, envp);
     return;
   }
   
+  // If background tasks were specified, create a task vector
   char** backTask = myToc(inputString, '&');
   for (i = numBackground-1; i >= 1; i--){
     int pid = fork();
     if (pid == 0){
+      // Last task has highest priority, so it executes first
       checkForExecutables(backTask[i], envp);
       exit(0);
     } else {
+      wait(NULL);
+      // Waits for task with higher priority to finish before executing
       checkForExecutables(backTask[i-1], envp);
     }
-    
   }
+  // Free the task vector, to avoid memory leaks
   for (i = 0; i < numBackground; i++){
     free(backTask[i]);
   }
   free(backTask);
-  
 }
 
+// Main thread of execution for Shell
 int main(int argc, char **argv, char**envp){
   unsigned int len = 1024, i;
   char inputString[len];
-
   LOOP:
-  write(1,"$ ", 2);
-  fgets (inputString, len, stdin); // Read input from user
-
-  // Built in exit funcion for the shell
-  if (stringCompare(inputString, "exit\n")){
-    printf("\nEnd of Execution\n\n");
-    return 0;
-  }
-
-  // Determines the number of input words
-  numWords = numberOfWords(inputString, delim);
-
-  // If no input was provided, re-prompt
-  if (!numWords){
+    write(1,"$ ", 2);
+    fgets (inputString, len, stdin); // Read input from user
+    // Built in exit funcion for the shell
+    if (stringCompare(inputString, "exit\n")){
+      printf("\nEnd of Execution\n\n");
+      return 0;
+    }
+    // Determines the number of input words
+    numWords = numberOfWords(inputString, delim);
+    // If no input was provided, re-prompt
+    if (!numWords){
+      goto LOOP;
+    }
+    // Attempt to execute provided commands
+    checkForBackground(inputString, envp);
     goto LOOP;
-  }
-  
-  checkForBackground(inputString, envp);
-  goto LOOP;
-
   return 0;
 }
