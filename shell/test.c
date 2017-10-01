@@ -86,33 +86,77 @@ int executePipedCommand(char** tokenizedString, char** envp, int in, int out){
   return pid;
 }
 
-// Provides I/O redirection for piped commands
-void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
-  int pid, i, j, in = 0;
-  int fd[2];
+// Execute a regular single command 
+int executeSingleCommand(char* inputString, char** envp){
+  int i, numArg, retVal = 0;
   char** tokenizedString;
   
+  numArg = numberOfWords(inputString, ' '); // Calculate number of arguments 
+  tokenizedString = myToc(inputString, ' '); // Tokenizes the input string into individual arguments 
+
+  // If no arguments were provided, return
+  if (!numArg) {
+    return;
+  }
+  
+  // Checks for the special case of the cd command
+  if (stringCompare(tokenizedString[0], "cd")){
+    if (numArg == 1)
+      chdir("/root/"); // If no path was specified, go to the root folder
+    else 
+      chdir(tokenizedString[1]); 
+    retVal = 1;
+    goto FREE; // Free malloc'd argument vector
+  }
+  
+  // Finds absolute path for input command and returns a properly formatted argument vector
+  tokenizedString = formatExecutableParameters(tokenizedString, envp);
+
+  // Run only if provided command was found
+  if (tokenizedString[0][0] != '0'){
+    int pid = fork();
+    if (pid == 0){
+      // If in child, execute command
+      fflush(NULL);
+      execve(tokenizedString[0], tokenizedString, envp);
+      exit(0);
+    } else {
+      wait(NULL); // Wait for child to be done before continuing execution
+      retval = 1;
+    }
+  } else {
+    printf("\tCommand not found!\n");
+  }
+
+ FREE:
+  // Free argument vector, to avoid memory leaks
+  for (i = 0; i < numArg + 1; i++){
+    free(tokenizedString[i]);
+  }
+  free(tokenizedString);
+  return retVal;
+}
+
+// Provides I/O redirection for piped commands
+void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
+  int i, j, in = 0;
+  int fd[2];
+  pid_t pid;
+  char** tokenizedString;
+  // Stores the original file descriptors for stdin & stdout
+  int stdinCopy = dup(0), stdoutCopy = dup(1); 
+
   for (i = 0; i < numCommands-1; i++){
     pipe(fd); // Sets pipe 
-    numWords = numberOfWords(tokenizedCommands[i], ' '); // Calculate the number of arguments 
-    tokenizedString = myToc(tokenizedCommands[i], ' '); // Tokenizes the input string into individual arguments 
-    // Checks for the special case of the cd command
-    if (stringCompare(tokenizedString[0], "cd")){
-      if (numWords == 1){
-        chdir("/root/"); // If no path was specified, go to the root folder
-      }
-      else{
-        chdir(tokenizedString[1]);
-      }
-      continue; 
+    if (in != 0){
+      dup2(in, 0);
+      close(in);
     }
-    // Finds absolute path for input command and returns a properly formatted argument vector
-    tokenizedString = formatExecutableParameters(tokenizedString, envp); 
-    // Stores the original file descriptors for stdin & stdout
-    int stdinCopy = dup(0), stdoutCopy = dup(1); 
-    // Run only if provided command was found
-    if (tokenizedString[0][0] != '0'){
-      executePipedCommand(tokenizedString, envp, in, fd[1]);
+    if (fd[i] != 1) {
+      dup2(fd[i], 1);
+      close(fd[i]);
+    }
+    if(executeSingleCommand(tokenizedString[i], envp)){
       close(fd[1]); // Close output 
       in = fd[0]; // Receive input
     } else {
@@ -130,81 +174,16 @@ void pippedExecution(char** tokenizedCommands, char** envp, int numCommands){
     }
     free(tokenizedString);
   }
-  
   if (in != 0){
     dup2(in, 0);
   }
-  // Free argument vector for final command
-  for (j = 0; j < numWords + 1; j++){
-    free(tokenizedString[j]);
-  }
-  free(tokenizedString);
-  // Format the final argument vector
-  tokenizedString = myToc(tokenizedCommands[i], ' ');
-  tokenizedString = formatExecutableParameters(tokenizedString, envp);
-  // Attempt to execute the final command
-  pid = fork();
-  if (pid == 0){
-    fflush(NULL);
-    execve(tokenizedString[0], tokenizedString, envp);
-    exit(0);
-  } else {
-    // Restores the default file descriptors once final process executes
-    RSTRFD: 
-    dup2(stdinCopy, 0);
-    dup2(stdoutCopy, 1);
-    close(stdinCopy);
-    close(stdoutCopy);
-    fflush(NULL);
-  }
-}
-
-// Execute a regular single command 
-void executeSingleCommand(char* inputString, char** envp){
-  int i, numArg;
-  char** tokenizedString;
-  
-  numArg = numberOfWords(inputString, ' '); // Calculate number of arguments 
-  tokenizedString = myToc(inputString, ' '); // Tokenizes the input string into individual arguments 
-
-  // If no arguments were provided, return
-  if (!numArg) {
-    return;
-  }
-  
-  // Checks for the special case of the cd command
-  if (stringCompare(tokenizedString[0], "cd")){
-    if (numArg == 1)
-      chdir("/root/"); // If no path was specified, go to the root folder
-    else 
-      chdir(tokenizedString[1]); 
-    goto FREE; // Free malloc'd argument vector
-  }
-  
-  // Finds absolute path for input command and returns a properly formatted argument vector
-  tokenizedString = formatExecutableParameters(tokenizedString, envp);
-
-  // Run only if provided command was found
-  if (tokenizedString[0][0] != '0'){
-    int pid = fork();
-    if (pid == 0){
-      // If in child, execute command
-      fflush(NULL);
-      execve(tokenizedString[0], tokenizedString, envp);
-      exit(0);
-    } else {
-      wait(NULL); // Wait for child to be done before continuing execution
-    }
-  } else {
-    printf("\tCommand not found!\n");
-  }
-
- FREE:
-  // Free argument vector, to avoid memory leaks
-  for (i = 0; i < numArg + 1; i++){
-    free(tokenizedString[i]);
-  }
-  free(tokenizedString);
+  executeSingleCommand(tokenizedString[i], envp)
+  RSTRFD: 
+  dup2(stdinCopy, 0);
+  dup2(stdoutCopy, 1);
+  close(stdinCopy);
+  close(stdoutCopy);
+  fflush(NULL);
 }
 
 // Determines if piping was instructed, handling it if it's the case
