@@ -4,6 +4,7 @@
 #include <sys/wait.h>
 #include "myString.h"
 #include "mytoc.h"
+#include "errno.h"
 
 int numWords; // Stores number of words per input
 char delim = ' '; // Delimiter for tokenizer
@@ -69,7 +70,7 @@ char** formatExecutableParameters(char** tokenizedString, char** envp){
   return tokenizedString;
 }
 
-// Execute a regular single command 
+// Execute command 
 int executeCommand(char* inputString, char** envp, int pipe, int in, int out){
   int i, numArg, retVal = 0;
   char** tokenizedString;
@@ -118,7 +119,9 @@ int executeCommand(char* inputString, char** envp, int pipe, int in, int out){
         }
       }
       // If in child, execute command
-      execve(tokenizedString[0], tokenizedString, envp);
+      if(execve(tokenizedString[0], tokenizedString, envp) == -1){
+	printf("Program terminated with exit code: %d\n", errno);
+      }
       exit(0);
     } else {
       wait(NULL); // Wait for child to be done before continuing execution
@@ -140,7 +143,7 @@ int executeCommand(char* inputString, char** envp, int pipe, int in, int out){
 // Provides I/O redirection for piped commands
 void pipedExecution(char** tokenizedCommands, char** envp, int numCommands){
   int i, j, in = 0, out;
-  int fd[2];
+  int* fd = calloc(sizeof(int), 2);
   pid_t pid;
   // Stores the original file descriptors for stdin & stdout
   int stdinCopy = dup(0), stdoutCopy = dup(1); 
@@ -154,11 +157,15 @@ void pipedExecution(char** tokenizedCommands, char** envp, int numCommands){
       goto RSTRFD; // Restore default file descriptors
     }
   }
+  
+  // Copy pipe input fd into stdin
   if (in != 0){
     dup2(in, 0);
   }
+  // Executes final command in the pipe chain
   executeCommand(tokenizedCommands[i], envp, 1, in, fd[1]);
-  RSTRFD: 
+  // Restores the default stdin & stdout fds
+ RSTRFD: 
   dup2(stdinCopy, 0);
   dup2(stdoutCopy, 1);
 }
@@ -178,6 +185,7 @@ void checkForExecutables(char* inputString, char** envp){
   }
 }
 
+// Determines if background taks were instructed, handling if it's the case
 void checkForBackground(char* inputString, char** envp){
   int numBackground = numberOfWords(inputString, '&'), i;
 
