@@ -198,18 +198,18 @@ void checkForBackground(char* inputString, char** envp){
   
   // If background tasks were specified, create a task vector
   char** backTask = myToc(inputString, '&');
-  for (i = numBackground-1; i >= 1; i--){
+  for (i = numBackground-1; i > 0; i--){
     int pid = fork();
     if (pid == 0){
       // Last task has highest priority, so it executes first
       checkForExecutables(backTask[i], envp);
       exit(0);
-    } else {
-      wait(NULL);
-      // Waits for task with higher priority to finish before executing
-      checkForExecutables(backTask[i-1], envp);
-    }
+    } 
   }
+
+   // Waits for other tasks to stop executing before running last command
+  checkForExecutables(backTask[i], envp);
+    
   // Free the task vector, to avoid memory leaks
   for (i = 0; i < numBackground; i++){
     free(backTask[i]);
@@ -220,13 +220,15 @@ void checkForBackground(char* inputString, char** envp){
 // Main thread of execution for Shell
 int main(int argc, char **argv, char**envp){
   unsigned int len = 1024, i;
-  char inputString[len];
+  char* inputString = (char*) calloc(sizeof(char), len);
+  // printf("cwd: %s\n", getlogin_r(inputString, len));
   LOOP:
     write(1,"$ ", 2);
-    fgets (inputString, len, stdin); // Read input from user
+    //fgets(inputString, len, stdin); // Read input from user
+    read(0, inputString, len); // Read input from user    
     // Built in exit funcion for the shell
     if (stringCompare(inputString, "exit\n")){
-      printf("\nEnd of Execution\n\n");
+      printf("End of Execution\n");
       return 0;
     }
     // Determines the number of input words
@@ -237,6 +239,9 @@ int main(int argc, char **argv, char**envp){
     }
     // Attempt to execute provided commands
     checkForBackground(inputString, envp);
+    wait(NULL);
+    free(inputString);
+    inputString = (char*) calloc(sizeof(char), len);
     goto LOOP;
   return 0;
 }
