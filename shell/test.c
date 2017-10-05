@@ -170,9 +170,25 @@ void pipedExecution(char** tokenizedCommands, char** envp, int numCommands){
   dup2(stdoutCopy, 1);
 }
 
+int countInstances(char* iString, char c){
+  int count = 0;
+  char* temp;
+  for(temp = iString; *temp != '\0'; temp++){
+    if(*temp == c){
+      count++;
+    }
+  }
+  return count;
+}
+
+
 // Determines if piping was instructed, handling it if it's the case
 void checkForExecutables(char* inputString, char** envp){
   int numCommands = numberOfWords(inputString, '|'), i, j;
+  if (countInstances(inputString, '|') && !numCommands){
+    printf("\tUnexpected token &\n");
+    return;
+  }
   if (numCommands == 1){
     // If only a single command was provided, no piping will take place
     executeCommand(inputString, envp, 0, 0, 0); 
@@ -189,8 +205,16 @@ void checkForExecutables(char* inputString, char** envp){
 void checkForBackground(char* inputString, char** envp){
   int numBackground = numberOfWords(inputString, '&'), i;
 
+  //printf("numBackground: %d\n", numBackground);
+  int inst = countInstances(inputString, '&');
+
+  if(!numBackground && inst){
+    printf("Unexpected token &\n");
+    return;
+  }
+  
   // If there will be no background execution
-  if (numBackground == 1){
+  if (numBackground == 1 && !inst){
     // Proceed to check for piping
     checkForExecutables(inputString, envp);
     return;
@@ -222,15 +246,20 @@ int main(int argc, char **argv, char**envp){
   unsigned int len = 1024, i;
   char* inputString = (char*) calloc(sizeof(char), len);
   // printf("cwd: %s\n", getlogin_r(inputString, len));
-  LOOP:
-    write(1,"$ ", 2);
+ LOOP:;
+    write(1,"$ ", 0);
     //fgets(inputString, len, stdin); // Read input from user
-    read(0, inputString, len); // Read input from user    
+    int bytesRead = read(0, inputString, len); // Read input from user
+
+    if (!bytesRead){
+      return 0;
+    }
     // Built in exit funcion for the shell
     if (stringCompare(inputString, "exit\n")){
       printf("End of Execution\n");
       return 0;
     }
+   
     // Determines the number of input words
     numWords = numberOfWords(inputString, delim);
     // If no input was provided, re-prompt
