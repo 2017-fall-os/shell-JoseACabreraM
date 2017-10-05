@@ -170,23 +170,11 @@ void pipedExecution(char** tokenizedCommands, char** envp, int numCommands){
   dup2(stdoutCopy, 1);
 }
 
-int countInstances(char* iString, char c){
-  int count = 0;
-  char* temp;
-  for(temp = iString; *temp != '\0'; temp++){
-    if(*temp == c){
-      count++;
-    }
-  }
-  return count;
-}
-
-
 // Determines if piping was instructed, handling it if it's the case
 void checkForExecutables(char* inputString, char** envp){
   int numCommands = numberOfWords(inputString, '|'), i, j;
   if (countInstances(inputString, '|') && !numCommands){
-    printf("\tUnexpected token &\n");
+    printf("\tUnexpected token |\n");
     return;
   }
   if (numCommands == 1){
@@ -209,7 +197,6 @@ void checkForBackground(char* inputString, char** envp){
   int inst = countInstances(inputString, '&');
 
   if(!numBackground && inst){
-    printf("Unexpected token &\n");
     return;
   }
   
@@ -247,30 +234,35 @@ int main(int argc, char **argv, char**envp){
   char* inputString = (char*) calloc(sizeof(char), len);
   // printf("cwd: %s\n", getlogin_r(inputString, len));
  LOOP:;
-    write(1,"$ ", 0);
-    //fgets(inputString, len, stdin); // Read input from user
-    int bytesRead = read(0, inputString, len); // Read input from user
 
-    if (!bytesRead){
-      return 0;
-    }
-    // Built in exit funcion for the shell
-    if (stringCompare(inputString, "exit\n")){
-      printf("End of Execution\n");
-      return 0;
-    }
+  write(1,"$ ", 0); // Stopped it from outputing prompt to run testShell.sh
+    
+  //fgets(inputString, len, stdin); // Read input from user
+  int bytesRead = read(0, inputString, len); // Read input from user
+
+  // To end execution on end of file
+  if (!bytesRead){
+    return 0;
+  }
+    
+  // Built in exit funcion for the shell
+  if (stringCompare(inputString, "exit\n")){
+    printf("End of Execution\n");
+    return 0;
+  }
    
-    // Determines the number of input words
-    numWords = numberOfWords(inputString, delim);
-    // If no input was provided, re-prompt
-    if (!numWords){
-      goto LOOP;
-    }
-    // Attempt to execute provided commands
-    checkForBackground(inputString, envp);
-    wait(NULL);
-    free(inputString);
-    inputString = (char*) calloc(sizeof(char), len);
+  // Determines the number of input words
+  numWords = numberOfWords(inputString, delim);
+  // If no input was provided, re-prompt
+  if (!numWords){
     goto LOOP;
+  }
+  // Attempt to execute provided commands
+  checkForBackground(inputString, envp);
+  wait(NULL);
+  free(inputString);
+  inputString = (char*) calloc(sizeof(char), len);
+  goto LOOP;
   return 0;
+  
 }

@@ -53,3 +53,15 @@ int stringCompare(char* fString, char* sString){
     }
     return(fString[i] == '\0' && sString[i] == '\0');
 }
+
+// Counts the number of instances of c within iString
+int countInstances(char* iString, char c){
+  int count = 0;
+  char* temp;
+  for(temp = iString; *temp != '\0'; temp++){
+    if(*temp == c){
+      count++;
+    }
+  }
+  return count;
+}
